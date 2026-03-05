@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Жильё</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: var(--tg-theme-bg-color, #f7f6f3);
+  --surface: var(--tg-theme-secondary-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #1a1916);
+  --hint: var(--tg-theme-hint-color, #9b9690);
+  --btn: var(--tg-theme-button-color, #2d6a4f);
+  --btn-text: var(--tg-theme-button-text-color, #ffffff);
+  --border: rgba(0,0,0,0.08);
+  --accent: #2d6a4f; --accent-light: #e8f4f0;
+  --danger: #c44b3a; --danger-light: #fdf0ee;
+  --warn: #b5651d; --warn-light: #fef6ed;
+  --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; overscroll-behavior: none; padding-bottom: env(safe-area-inset-bottom); }
+
+.tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 50; }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 8px; gap: 3px; cursor: pointer; user-select: none; }
+.tab:active { opacity: 0.6; }
+.tab-icon { font-size: 22px; line-height: 1; }
+.tab-label { font-size: 10px; font-weight: 500; color: var(--hint); }
+.tab.active .tab-label { color: var(--btn); }
+
+.page { display: none; padding: 16px 16px 90px; min-height: 100vh; }
+.page.active { display: block; }
+.page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
+.page-subtitle { font-size: 13px; color: var(--hint); margin-bottom: 16px; }
+
+.summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.scard { background: var(--surface); border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); }
+.scard-val { font-size: 22px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; line-height: 1; }
+.scard-val.green { color: var(--accent); } .scard-val.red { color: var(--danger); } .scard-val.warn { color: var(--warn); }
+.scard-lbl { font-size: 10px; color: var(--hint); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+.housing-card { background: var(--surface); border-radius: var(--radius); margin-bottom: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.hcard-head { padding: 14px 16px 10px; display: flex; align-items: center; gap: 12px; }
+.hcard-icon { font-size: 28px; flex-shrink: 0; }
+.hcard-info { flex: 1; min-width: 0; }
+.hcard-name { font-size: 16px; font-weight: 600; }
+.hcard-addr { font-size: 12px; color: var(--hint); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hcard-stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.hstat { padding: 8px 4px; text-align: center; border-right: 1px solid var(--border); }
+.hstat:last-child { border-right: none; }
+.hstat-val { font-size: 18px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+.hstat-val.green { color: var(--accent); } .hstat-val.red { color: var(--danger); }
+.hstat-lbl { font-size: 10px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 1px; }
+.hcard-tenants { padding: 10px 16px 4px; }
+.hcard-tenants-label { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.add-tenant-btn { font-size: 12px; color: var(--btn); font-weight: 500; cursor: pointer; }
+.tenant-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.tenant-row:last-child { border-bottom: none; }
+.t-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.t-info { flex: 1; min-width: 0; }
+.t-name { font-size: 14px; font-weight: 500; }
+.t-room { font-size: 11px; color: var(--hint); margin-top: 1px; }
+.t-right { text-align: right; flex-shrink: 0; }
+.t-dates { font-size: 11px; color: var(--hint); font-family: 'IBM Plex Mono', monospace; }
+.t-rate { font-size: 11px; color: var(--accent); margin-top: 2px; }
+.no-tenants { font-size: 12px; color: var(--hint); font-style: italic; padding: 4px 0 12px; }
+.hcard-footer { padding: 10px 16px; background: rgba(0,0,0,0.02); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.hcard-rate { font-size: 13px; color: var(--hint); font-family: 'IBM Plex Mono', monospace; }
+.hcard-rate strong { color: var(--text); }
+.hcard-actions { display: flex; gap: 8px; }
+.hcard-btn { font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-family: 'Inter', sans-serif; }
+
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.b-green { background: var(--accent-light); color: var(--accent); }
+.b-red { background: var(--danger-light); color: var(--danger); }
+.b-warn { background: var(--warn-light); color: var(--warn); }
+.b-gray { background: rgba(0,0,0,0.06); color: var(--hint); }
+.b-blue { background: #e8f0fe; color: #1a73e8; }
+
+.tenant-card { background: var(--surface); border-radius: var(--radius); margin-bottom: 10px; box-shadow: var(--shadow); overflow: hidden; }
+.tcard-head { padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+.tcard-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.tcard-info { flex: 1; min-width: 0; }
+.tcard-name { font-size: 15px; font-weight: 600; }
+.tcard-sub { font-size: 12px; color: var(--hint); margin-top: 2px; }
+.tcard-body { padding: 0 14px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tcard-field-label { font-size: 10px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.3px; }
+.tcard-field-value { font-size: 13px; font-weight: 500; margin-top: 1px; font-family: 'IBM Plex Mono', monospace; }
+.tcard-actions { border-top: 1px solid var(--border); padding: 10px 14px; display: flex; gap: 8px; }
+.tcard-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; font-family: 'Inter', sans-serif; color: var(--text); cursor: pointer; text-align: center; }
+.tcard-btn.danger { color: var(--danger); border-color: var(--danger-light); background: var(--danger-light); }
+.tcard-btn.warn { color: var(--warn); border-color: var(--warn-light); background: var(--warn-light); }
+
+.filter-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; scrollbar-width: none; }
+.filter-row::-webkit-scrollbar { display: none; }
+.ftag { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; white-space: nowrap; cursor: pointer; user-select: none; color: var(--text); }
+.ftag.active { background: var(--text); color: white; border-color: var(--text); }
+
+.access-card { background: var(--surface); border-radius: var(--radius); margin-bottom: 10px; box-shadow: var(--shadow); }
+.access-card-body { padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+.access-avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+.access-info { flex: 1; min-width: 0; }
+.access-name { font-size: 15px; font-weight: 600; }
+.access-meta { font-size: 11px; color: var(--hint); font-family: 'IBM Plex Mono', monospace; margin-top: 3px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.access-actions { display: flex; gap: 6px; flex-shrink: 0; flex-direction: column; }
+.access-btn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; font-family: 'Inter', sans-serif; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.access-btn.approve { background: var(--accent-light); color: var(--accent); border-color: var(--accent-light); }
+.access-btn.block { background: var(--danger-light); color: var(--danger); border-color: var(--danger-light); }
+.section-title { font-size: 12px; font-weight: 600; color: var(--hint); text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; }
+
+.status-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 75vh; padding: 30px 24px; text-align: center; }
+.status-icon { font-size: 56px; margin-bottom: 16px; }
+.status-title { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+.status-text { font-size: 14px; color: var(--hint); line-height: 1.5; }
+.status-id { font-family: 'IBM Plex Mono', monospace; background: var(--surface); border-radius: 8px; padding: 8px 16px; font-size: 14px; margin-top: 16px; border: 1px solid var(--border); }
+
+.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.sheet-overlay.open { opacity: 1; pointer-events: all; }
+.sheet { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-radius: 20px 20px 0 0; z-index: 101; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1); max-height: 92vh; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
+.sheet.open { transform: translateY(0); }
+.sheet-handle { width: 36px; height: 4px; background: rgba(0,0,0,0.15); border-radius: 2px; margin: 12px auto 0; }
+.sheet-header { padding: 14px 20px 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.sheet-title { font-size: 17px; font-weight: 600; }
+.sheet-close { width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,0.06); border: none; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; color: var(--hint); }
+.sheet-body { padding: 16px 20px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 11px; font-weight: 500; color: var(--hint); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); outline: none; -webkit-appearance: none; appearance: none; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--btn); }
+.form-group textarea { resize: none; min-height: 70px; }
+.form-hint { font-size: 11px; color: var(--hint); margin-top: 4px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0 14px; }
+.form-section-label { font-size: 12px; font-weight: 600; color: var(--hint); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+.submit-btn { width: 100%; padding: 14px; background: var(--btn); color: var(--btn-text); border: none; border-radius: 12px; font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; margin-top: 6px; }
+.submit-btn:active { opacity: 0.8; } .submit-btn:disabled { opacity: 0.5; }
+
+.fab { position: fixed; bottom: calc(68px + env(safe-area-inset-bottom)); right: 16px; width: 54px; height: 54px; border-radius: 50%; background: var(--btn); color: var(--btn-text); border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; z-index: 40; transition: transform 0.15s; }
+.fab:active { transform: scale(0.92); }
+
+.loading { display: flex; align-items: center; justify-content: center; height: 60vh; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--btn); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty { text-align: center; padding: 50px 20px; color: var(--hint); }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-text { font-size: 15px; } .empty-sub { font-size: 13px; margin-top: 6px; }
+
+.toast { position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; z-index: 200; opacity: 0; transition: all 0.3s; white-space: nowrap; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="page active" id="page-housing">
+  <div class="page-title">🏠 Объекты</div>
+  <div class="page-subtitle" id="housing-subtitle">Загрузка...</div>
+  <div class="summary-strip" id="summary-strip"></div>
+  <div class="filter-row">
+    <div class="ftag active" onclick="setHousingFilter('all',this)">Все</div>
+    <div class="ftag" onclick="setHousingFilter('free',this)">Есть места</div>
+    <div class="ftag" onclick="setHousingFilter('full',this)">Заполнено</div>
+    <div class="ftag" onclick="setHousingFilter('soon',this)">Скоро выезд</div>
+  </div>
+  <div id="housing-list"></div>
+</div>
+
+<div class="page" id="page-tenants">
+  <div class="page-title">👤 Жильцы</div>
+  <div style="margin-bottom:16px"></div>
+  <div class="filter-row">
+    <div class="ftag active" onclick="setTenantFilter('all',this)">Все</div>
+    <div class="ftag" onclick="setTenantFilter('active',this)">Живут</div>
+    <div class="ftag" onclick="setTenantFilter('permanent',this)">Бессрочные</div>
+    <div class="ftag" onclick="setTenantFilter('soon',this)">Скоро выезд</div>
+    <div class="ftag" onclick="setTenantFilter('past',this)">Выехали</div>
+  </div>
+  <div id="tenant-list"></div>
+</div>
+
+<div class="page" id="page-access">
+  <div class="page-title">⚙️ Доступ</div>
+  <div class="page-subtitle">Управление пользователями</div>
+  <div id="access-list"></div>
+</div>
+
+<nav class="tabs" id="tabs">
+  <div class="tab active" id="tab-housing" onclick="showPage('housing')"><div class="tab-icon">🏠</div><div class="tab-label">Объекты</div></div>
+  <div class="tab" id="tab-tenants" onclick="showPage('tenants')"><div class="tab-icon">👤</div><div class="tab-label">Жильцы</div></div>
+  <div class="tab" id="tab-access" style="display:none" onclick="showPage('access')"><div class="tab-icon">⚙️</div><div class="tab-label">Доступ</div></div>
+</nav>
+
+<button class="fab" id="fab" onclick="handleFab()">＋</button>
+
+<!-- SHEET: HOUSING -->
+<div class="sheet-overlay" id="hso" onclick="closeHousingSheet()"></div>
+<div class="sheet" id="hs">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><div class="sheet-title" id="hs-title">Добавить объект</div><button class="sheet-close" onclick="closeHousingSheet()">✕</button></div>
+  <div class="sheet-body">
+    <div class="form-group"><label>Название *</label><input type="text" id="hf-name" placeholder="Апартаменты №1..."></div>
+    <div class="form-row">
+      <div class="form-group"><label>Тип</label><select id="hf-type"><option value="🏠">🏠 Квартира</option><option value="🏡">🏡 Дом</option><option value="🛏">🛏 Комната</option><option value="🏨">🏨 Апарт.</option><option value="⛺">⛺ Домик</option><option value="🏘">🏘 Хостел</option></select></div>
+      <div class="form-group"><label>Мест *</label><input type="number" id="hf-capacity" min="1" value="4" inputmode="numeric"></div>
+    </div>
+    <div class="form-group"><label>Адрес</label><input type="text" id="hf-address" placeholder="ул. Ленина, 5"></div>
+    <div class="form-row">
+      <div class="form-group"><label>kr / день</label><input type="number" id="hf-rate" min="0" placeholder="2500" inputmode="numeric"></div>
+      <div class="form-group"><label>Единиц</label><input type="number" id="hf-units" min="1" value="1" inputmode="numeric"></div>
+    </div>
+    <div class="form-group"><label>Заметки</label><textarea id="hf-notes" placeholder="Условия, удобства..."></textarea></div>
+    <button class="submit-btn" onclick="saveHousing()">Сохранить</button>
+  </div>
+</div>
+
+<!-- SHEET: TENANT -->
+<div class="sheet-overlay" id="tso" onclick="closeTenantSheet()"></div>
+<div class="sheet" id="ts">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><div class="sheet-title" id="ts-title">Добавить жильца</div><button class="sheet-close" onclick="closeTenantSheet()">✕</button></div>
+  <div class="sheet-body">
+    <div class="form-row">
+      <div class="form-group"><label>Имя *</label><input type="text" id="tf-first" placeholder="Иван"></div>
+      <div class="form-group"><label>Фамилия</label><input type="text" id="tf-last" placeholder="Петров"></div>
+    </div>
+    <div class="form-group"><label>Объект *</label><select id="tf-housing"></select></div>
+    <div class="form-group"><label>Место (комната / кровать)</label><input type="text" id="tf-room" placeholder="Комната 3, Кровать A..."></div>
+    <hr class="form-divider">
+    <div class="form-section-label">Даты</div>
+    <div class="form-row">
+      <div class="form-group"><label>Заселение *</label><input type="date" id="tf-checkin"></div>
+      <div class="form-group"><label>Выселение</label><input type="date" id="tf-checkout"><div class="form-hint">Пусто = бессрочно</div></div>
+    </div>
+    <hr class="form-divider">
+    <div class="form-section-label">Оплата</div>
+    <div class="form-group"><label>kr / день</label><input type="number" id="tf-rate" min="0" placeholder="Из объекта" inputmode="numeric"><div class="form-hint">Пусто → берётся из объекта</div></div>
+    <div class="form-group"><label>Заметки</label><textarea id="tf-notes" placeholder="Контакты, условия..."></textarea></div>
+    <button class="submit-btn" onclick="saveTenant()">Сохранить</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://jvwmiamktspcdydxpvyr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2d21pYW1rdHNwY2R5ZHhwdnlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NDY0NjUsImV4cCI6MjA4ODMyMjQ2NX0.3cwwLX0Jfca8HEn7DfI4kID7aytobMJsHi9y98McvoM';
+
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const tgUser = tg?.initDataUnsafe?.user || null;
+const ME = tgUser
+  ? { id: tgUser.id, first_name: tgUser.first_name||'', username: tgUser.username||'' }
+  : { id: 99999999, first_name: 'Browser', username: 'test' };
+
+let housing=[], tenants=[], currentUser=null;
+let editingHousingId=null, editingTenantId=null;
+let currentPage='housing', housingFilter='all', tenantFilter='all';
+
+// SUPABASE
+async function sb(method, table, body, query='') {
+  const h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json' };
+  if (method==='POST') h['Prefer']='return=representation';
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, { method, headers:h, body:body?JSON.stringify(body):undefined });
+  if (method==='GET'||method==='POST') return res.ok ? res.json() : [];
+  return res.ok;
+}
+const dbGet   = (t,q='') => sb('GET',t,null,q);
+const dbPost  = (t,b)    => sb('POST',t,b);
+const dbPatch = (t,b,q)  => sb('PATCH',t,b,q);
+const dbDel   = (t,q)    => sb('DELETE',t,null,q);
+
+// AUTH
+async function initAuth() {
+  document.getElementById('housing-list').innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  const existing = await dbGet('users', `?telegram_id=eq.${ME.id}`);
+  if (existing.length === 0) {
+    const all = await dbGet('users', '?limit=1');
+    const role = all.length === 0 ? 'admin' : 'pending';
+    await dbPost('users', { telegram_id: ME.id, first_name: ME.first_name, username: ME.username, role });
+    currentUser = { telegram_id: ME.id, role };
+  } else {
+    currentUser = existing[0];
+    await dbPatch('users', { first_name: ME.first_name, username: ME.username }, `?telegram_id=eq.${ME.id}`);
+  }
+  if (currentUser.role==='admin') document.getElementById('tab-access').style.display='flex';
+  if (currentUser.role==='pending') { showStatusScreen('⏳','Запрос отправлен','Как только администратор одобрит — приложение откроется.',true); return; }
+  if (currentUser.role==='blocked') { showStatusScreen('⛔','Доступ закрыт','Обратись к администратору.',false); return; }
+  await loadData();
+}
+
+function showStatusScreen(icon, title, text, showId) {
+  document.getElementById('tabs').style.display='none';
+  document.getElementById('fab').style.display='none';
+  document.getElementById('housing-subtitle').textContent='';
+  document.getElementById('summary-strip').innerHTML='';
+  document.getElementById('housing-list').innerHTML=`<div class="status-screen"><div class="status-icon">${icon}</div><div class="status-title">${title}</div><div class="status-text">${text}</div>${showId?`<div class="status-id">Твой ID: ${ME.id}</div>`:''}</div>`;
+}
+
+// DATA
+async function loadData() {
+  const [h,t] = await Promise.all([dbGet('housing','?order=created_at.asc'), dbGet('tenants','?order=created_at.asc')]);
+  housing = h.map(r=>({id:r.id,name:r.name,type:r.type,address:r.address,capacity:r.capacity,units:r.units,rate:r.rate,notes:r.notes}));
+  tenants = t.map(r=>({id:r.id,housingId:r.housing_id,first:r.first_name,last:r.last_name,room:r.room,checkin:r.checkin,checkout:r.checkout,rate:r.rate,notes:r.notes}));
+  render();
+}
+
+// HELPERS
+const fmtDate = d => !d ? '—' : new Date(d).toLocaleDateString('ru-RU',{day:'2-digit',month:'short'});
+const initials = t => ((t.first||'')[0]||'').toUpperCase()+((t.last||'')[0]||'').toUpperCase()||'?';
+const effectiveRate = t => { if(t.rate!==null&&t.rate!==undefined&&t.rate!=='') return parseFloat(t.rate); const h=housing.find(h=>h.id===t.housingId); return h?(h.rate||0):0; };
+const tenantDays = t => { if(!t.checkin) return 0; return Math.max(0,Math.round(((t.checkout?new Date(t.checkout):new Date())-new Date(t.checkin))/86400000)); };
+const canEdit = () => currentUser?.role==='admin'||currentUser?.role==='member';
+
+function activeTenants(hid) {
+  const today=new Date(); today.setHours(0,0,0,0);
+  return tenants.filter(t=>{
+    if(t.housingId!==hid) return false;
+    const ci=new Date(t.checkin); ci.setHours(0,0,0,0); if(ci>today) return false;
+    if(t.checkout){const co=new Date(t.checkout); co.setHours(0,0,0,0); return co>=today;}
+    return true;
+  });
+}
+const housingFree = h => Math.max(0,h.capacity-activeTenants(h.id).length);
+
+function housingStatus(h) {
+  const today=new Date(); today.setHours(0,0,0,0);
+  const ats=activeTenants(h.id), f=housingFree(h);
+  const soon=ats.some(t=>{if(!t.checkout) return false; const co=new Date(t.checkout); co.setHours(0,0,0,0); return Math.round((co-today)/86400000)<=2;});
+  if(f===0) return {label:'Заполнено',cls:'b-red'};
+  if(soon) return {label:'Скоро выезд',cls:'b-warn'};
+  return {label:`Своб: ${f}`,cls:'b-green'};
+}
+
+function tenantStatus(t) {
+  const today=new Date(); today.setHours(0,0,0,0);
+  const ci=new Date(t.checkin); ci.setHours(0,0,0,0);
+  if(ci>today) return {label:'Ждём',cls:'b-gray'};
+  if(t.checkout){
+    const co=new Date(t.checkout); co.setHours(0,0,0,0);
+    if(co<today) return {label:'Выехал',cls:'b-gray'};
+    const d=Math.round((co-today)/86400000);
+    if(d<=2) return {label:`Выезд ${d}д`,cls:'b-warn'};
+    return {label:'Живёт',cls:'b-green'};
+  }
+  return {label:'∞ Живёт',cls:'b-green'};
+}
+
+// RENDER
+function render() { renderSummary(); renderHousingList(); renderTenantList(); }
+
+function renderSummary() {
+  const totalCap=housing.reduce((s,h)=>s+h.capacity,0);
+  const totalActive=housing.reduce((s,h)=>s+activeTenants(h.id).length,0);
+  const totalFree=totalCap-totalActive;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const soon=tenants.filter(t=>{if(!t.checkout) return false; const co=new Date(t.checkout); co.setHours(0,0,0,0); const d=Math.round((co-today)/86400000); return d>=0&&d<=3;}).length;
+  document.getElementById('summary-strip').innerHTML=`<div class="scard"><div class="scard-val">${totalActive}</div><div class="scard-lbl">Живут</div></div><div class="scard"><div class="scard-val ${totalFree>0?'green':'red'}">${totalFree}</div><div class="scard-lbl">Свободно</div></div><div class="scard"><div class="scard-val ${soon>0?'warn':''}">${soon}</div><div class="scard-lbl">Выезд скоро</div></div>`;
+  document.getElementById('housing-subtitle').textContent=`${housing.length} объектов · ${totalCap} мест`;
+}
+
+function renderHousingList() {
+  const today=new Date(); today.setHours(0,0,0,0);
+  let list=housing.filter(h=>{
+    const f=housingFree(h), ats=activeTenants(h.id);
+    const soon=ats.some(t=>{if(!t.checkout) return false; const co=new Date(t.checkout); co.setHours(0,0,0,0); return Math.round((co-today)/86400000)<=3;});
+    if(housingFilter==='free') return f>0; if(housingFilter==='full') return f===0; if(housingFilter==='soon') return soon; return true;
+  });
+  const el=document.getElementById('housing-list');
+  if(!list.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🏚</div><div class="empty-text">Нет объектов</div><div class="empty-sub">Нажми + чтобы добавить</div></div>`;return;}
+  el.innerHTML=list.map(h=>{
+    const ats=activeTenants(h.id), allT=tenants.filter(t=>t.housingId===h.id), f=housingFree(h), st=housingStatus(h);
+    const tRows=ats.length===0?`<div class="no-tenants">Нет активных жильцов</div>`:
+      ats.slice(0,3).map(t=>`<div class="tenant-row"><div class="t-avatar">${initials(t)}</div><div class="t-info"><div class="t-name">${t.first}${t.last?' '+t.last:''}</div><div class="t-room">${t.room||'—'}</div></div><div class="t-right"><div class="t-dates">${fmtDate(t.checkin)}→${t.checkout?fmtDate(t.checkout):'∞'}</div><div class="t-rate">${effectiveRate(t).toLocaleString('ru')} kr</div></div></div>`).join('')
+      +(ats.length>3?`<div style="font-size:12px;color:var(--hint);padding:4px 0">ещё ${ats.length-3}...</div>`:'');
+    const addBtn=canEdit()?`<span class="add-tenant-btn" onclick="openTenantSheet(null,${h.id})">＋ Добавить</span>`:'';
+    const editBtns=canEdit()?`<div class="hcard-actions"><button class="hcard-btn" onclick="openHousingSheet(${h.id})">✏️</button><button class="hcard-btn" onclick="deleteHousing(${h.id})">🗑</button></div>`:'';
+    return `<div class="housing-card"><div class="hcard-head"><div class="hcard-icon">${h.type}</div><div class="hcard-info"><div class="hcard-name">${h.name}</div>${h.address?`<div class="hcard-addr">📍 ${h.address}</div>`:''}</div><span class="badge ${st.cls}">${st.label}</span></div><div class="hcard-stats"><div class="hstat"><div class="hstat-val">${h.capacity}</div><div class="hstat-lbl">Всего</div></div><div class="hstat"><div class="hstat-val">${ats.length}</div><div class="hstat-lbl">Живут</div></div><div class="hstat"><div class="hstat-val ${f>0?'green':'red'}">${f}</div><div class="hstat-lbl">Своб.</div></div></div><div class="hcard-tenants"><div class="hcard-tenants-label"><span>Сейчас живут</span>${addBtn}</div>${tRows}</div><div class="hcard-footer"><div class="hcard-rate"><strong>${(h.rate||0).toLocaleString('ru')} kr</strong>/день · ${allT.length} жильцов</div>${editBtns}</div></div>`;
+  }).join('');
+}
+
+function renderTenantList() {
+  const today=new Date(); today.setHours(0,0,0,0);
+  let list=tenants.filter(t=>{
+    const ci=new Date(t.checkin); ci.setHours(0,0,0,0);
+    const co=t.checkout?new Date(t.checkout):null; if(co) co.setHours(0,0,0,0);
+    const isActive=ci<=today&&(!co||co>=today), isPermanent=isActive&&!t.checkout;
+    const isPast=co&&co<today, isSoon=co&&Math.round((co-today)/86400000)>=0&&Math.round((co-today)/86400000)<=3;
+    if(tenantFilter==='active') return isActive; if(tenantFilter==='permanent') return isPermanent;
+    if(tenantFilter==='soon') return isSoon; if(tenantFilter==='past') return isPast; return true;
+  });
+  const el=document.getElementById('tenant-list');
+  if(!list.length){el.innerHTML=`<div class="empty"><div class="empty-icon">👤</div><div class="empty-text">Нет жильцов</div></div>`;return;}
+  el.innerHTML=list.map(t=>{
+    const h=housing.find(h=>h.id===t.housingId), ts=tenantStatus(t), rate=effectiveRate(t), days=tenantDays(t);
+    const btns=canEdit()?`<div class="tcard-actions"><button class="tcard-btn" onclick="openTenantSheet(${t.id})">✏️ Изменить</button>${!t.checkout?`<button class="tcard-btn warn" onclick="quickCheckout(${t.id})">🚪 Выселить</button>`:''}<button class="tcard-btn danger" onclick="deleteTenant(${t.id})">🗑</button></div>`:'';
+    return `<div class="tenant-card"><div class="tcard-head"><div class="tcard-avatar">${initials(t)}</div><div class="tcard-info"><div class="tcard-name">${t.first}${t.last?' '+t.last:''}</div><div class="tcard-sub">${h?h.type+' '+h.name:'—'}${t.room?' · '+t.room:''}</div></div><span class="badge ${ts.cls}">${ts.label}</span></div><div class="tcard-body"><div><div class="tcard-field-label">Заселение</div><div class="tcard-field-value">${fmtDate(t.checkin)}</div></div><div><div class="tcard-field-label">Выселение</div><div class="tcard-field-value">${t.checkout?fmtDate(t.checkout):'∞ бессрочно'}</div></div><div><div class="tcard-field-label">Дней</div><div class="tcard-field-value">${days}</div></div><div><div class="tcard-field-label">kr/день</div><div class="tcard-field-value">${rate.toLocaleString('ru')}${(t.rate===null||t.rate===undefined||t.rate==='')?' *':''}</div></div></div>${t.notes?`<div style="padding:0 14px 10px;font-size:12px;color:var(--hint)">${t.notes}</div>`:''}${btns}</div>`;
+  }).join('');
+}
+
+async function renderAccessList() {
+  const users=await dbGet('users','?order=created_at.asc');
+  const pending=users.filter(u=>u.role==='pending'), active=users.filter(u=>u.role==='admin'||u.role==='member'), blocked=users.filter(u=>u.role==='blocked');
+  const roleTag=r=>r==='admin'?'<span class="badge b-blue">Админ</span>':r==='member'?'<span class="badge b-green">Участник</span>':r==='blocked'?'<span class="badge b-red">Заблокирован</span>':'<span class="badge b-gray">Ожидает</span>';
+  const card=(u,acts)=>`<div class="access-card"><div class="access-card-body"><div class="access-avatar">${(u.first_name||'?')[0].toUpperCase()}</div><div class="access-info"><div class="access-name">${u.first_name||'—'}${u.username?' · @'+u.username:''}</div><div class="access-meta"><span>ID: ${u.telegram_id}</span>${roleTag(u.role)}</div></div><div class="access-actions">${acts}</div></div></div>`;
+  let html='';
+  if(pending.length){html+=`<div class="section-title">⏳ Ожидают (${pending.length})</div>`;html+=pending.map(u=>card(u,`<button class="access-btn approve" onclick="setRole(${u.telegram_id},'member')">✓ Одобрить</button><button class="access-btn block" onclick="setRole(${u.telegram_id},'blocked')">✕ Отклонить</button>`)).join('');}
+  if(active.length){html+=`<div class="section-title">✅ Имеют доступ (${active.length})</div>`;html+=active.map(u=>{const isSelf=u.telegram_id===ME.id;const acts=isSelf?`<span style="font-size:12px;color:var(--hint)">Это ты</span>`:u.role==='admin'?`<button class="access-btn" onclick="setRole(${u.telegram_id},'member')">→ Участник</button>`:`<button class="access-btn" onclick="setRole(${u.telegram_id},'admin')">→ Админ</button><button class="access-btn block" onclick="setRole(${u.telegram_id},'blocked')">Блок</button>`;return card(u,acts);}).join('');}
+  if(blocked.length){html+=`<div class="section-title">🚫 Заблокированы (${blocked.length})</div>`;html+=blocked.map(u=>card(u,`<button class="access-btn approve" onclick="setRole(${u.telegram_id},'member')">Разблокировать</button>`)).join('');}
+  if(!html) html=`<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">Только ты</div><div class="empty-sub">Поделись ботом — коллеги увидят экран запроса доступа</div></div>`;
+  document.getElementById('access-list').innerHTML=html;
+}
+
+async function setRole(telegramId, role) {
+  await dbPatch('users',{role},`?telegram_id=eq.${telegramId}`);
+  showToast(role==='member'?'Доступ открыт':role==='blocked'?'Заблокирован':role==='admin'?'Назначен админом':'Обновлено');
+  renderAccessList();
+}
+
+// NAV
+function showPage(p) {
+  currentPage=p;
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('tab-'+p).classList.add('active');
+  document.getElementById('fab').style.display=p==='access'?'none':'flex';
+  if(p==='access') renderAccessList();
+}
+function setHousingFilter(f,el){housingFilter=f;document.querySelectorAll('#page-housing .ftag').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderHousingList();}
+function setTenantFilter(f,el){tenantFilter=f;document.querySelectorAll('#page-tenants .ftag').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderTenantList();}
+function handleFab(){if(!canEdit()){showToast('Нет прав');return;}currentPage==='housing'?openHousingSheet():openTenantSheet();}
+
+// HOUSING SHEET
+function openHousingSheet(id=null){
+  editingHousingId=id; const h=id?housing.find(x=>x.id===id):null;
+  document.getElementById('hs-title').textContent=h?'Редактировать объект':'Добавить объект';
+  document.getElementById('hf-name').value=h?.name||''; document.getElementById('hf-type').value=h?.type||'🏠';
+  document.getElementById('hf-address').value=h?.address||''; document.getElementById('hf-capacity').value=h?.capacity||4;
+  document.getElementById('hf-units').value=h?.units||1; document.getElementById('hf-rate').value=h?.rate||'';
+  document.getElementById('hf-notes').value=h?.notes||'';
+  document.getElementById('hso').classList.add('open'); document.getElementById('hs').classList.add('open');
+}
+function closeHousingSheet(){document.getElementById('hso').classList.remove('open');document.getElementById('hs').classList.remove('open');editingHousingId=null;}
+async function saveHousing(){
+  const name=document.getElementById('hf-name').value.trim(), capacity=parseInt(document.getElementById('hf-capacity').value);
+  if(!name){showToast('Введите название');return;} if(!capacity){showToast('Укажите кол-во мест');return;}
+  const btn=document.querySelector('#hs .submit-btn'); btn.disabled=true;
+  const row={id:editingHousingId||Date.now(),name,type:document.getElementById('hf-type').value,address:document.getElementById('hf-address').value.trim()||null,capacity,units:parseInt(document.getElementById('hf-units').value)||1,rate:parseFloat(document.getElementById('hf-rate').value)||0,notes:document.getElementById('hf-notes').value.trim()||null};
+  if(editingHousingId){await dbPatch('housing',row,`?id=eq.${editingHousingId}`);showToast('Обновлено');}else{await dbPost('housing',row);showToast('Добавлено');}
+  btn.disabled=false; closeHousingSheet(); await loadData();
+}
+async function deleteHousing(id){const h=housing.find(x=>x.id===id);if(!confirm(`Удалить «${h?.name}»? Жильцы тоже удалятся.`))return;await dbDel('housing',`?id=eq.${id}`);await loadData();showToast('Удалено');}
+
+// TENANT SHEET
+function openTenantSheet(id=null,presetHid=null){
+  editingTenantId=id; const t=id?tenants.find(x=>x.id===id):null;
+  const sel=document.getElementById('tf-housing');
+  sel.innerHTML=housing.length===0?`<option disabled>Сначала добавьте объект</option>`:housing.map(h=>`<option value="${h.id}">${h.type} ${h.name} (св: ${housingFree(h)})</option>`).join('');
+  document.getElementById('ts-title').textContent=t?'Редактировать жильца':'Добавить жильца';
+  document.getElementById('tf-first').value=t?.first||''; document.getElementById('tf-last').value=t?.last||'';
+  if(t) sel.value=t.housingId; else if(presetHid) sel.value=presetHid;
+  document.getElementById('tf-room').value=t?.room||'';
+  document.getElementById('tf-checkin').value=t?.checkin||new Date().toISOString().split('T')[0];
+  document.getElementById('tf-checkout').value=t?.checkout||'';
+  document.getElementById('tf-rate').value=(t?.rate!==null&&t?.rate!==undefined)?t.rate:'';
+  document.getElementById('tf-notes').value=t?.notes||'';
+  document.getElementById('tso').classList.add('open'); document.getElementById('ts').classList.add('open');
+}
+function closeTenantSheet(){document.getElementById('tso').classList.remove('open');document.getElementById('ts').classList.remove('open');editingTenantId=null;}
+async function saveTenant(){
+  const first=document.getElementById('tf-first').value.trim(), checkin=document.getElementById('tf-checkin').value;
+  const housingId=parseInt(document.getElementById('tf-housing').value), checkout=document.getElementById('tf-checkout').value||null, rateRaw=document.getElementById('tf-rate').value;
+  if(!first){showToast('Введите имя');return;} if(!checkin){showToast('Укажите дату');return;} if(!housingId){showToast('Выберите объект');return;}
+  if(checkout&&new Date(checkout)<=new Date(checkin)){showToast('Выселение раньше заселения');return;}
+  const btn=document.querySelector('#ts .submit-btn'); btn.disabled=true;
+  const row={id:editingTenantId||Date.now(),housing_id:housingId,first_name:first,last_name:document.getElementById('tf-last').value.trim()||null,room:document.getElementById('tf-room').value.trim()||null,checkin,checkout,rate:rateRaw!==''?parseFloat(rateRaw):null,notes:document.getElementById('tf-notes').value.trim()||null};
+  if(editingTenantId){await dbPatch('tenants',row,`?id=eq.${editingTenantId}`);showToast('Обновлено');}else{await dbPost('tenants',row);showToast('Добавлено');}
+  btn.disabled=false; closeTenantSheet(); await loadData();
+}
+async function deleteTenant(id){const t=tenants.find(x=>x.id===id);if(!confirm(`Удалить ${t?.first}?`))return;await dbDel('tenants',`?id=eq.${id}`);await loadData();showToast('Удалено');}
+async function quickCheckout(id){const t=tenants.find(x=>x.id===id);if(!t)return;const d=prompt('Дата выселения (ГГГГ-ММ-ДД):',new Date().toISOString().split('T')[0]);if(!d)return;await dbPatch('tenants',{checkout:d},`?id=eq.${id}`);await loadData();showToast(`${t.first} выселен(а)`);}
+
+function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2500);}
+
+initAuth();
+</script>
+</body>
+</html>
