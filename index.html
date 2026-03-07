@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Жильё</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -149,6 +150,18 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 .toast { position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; z-index: 200; opacity: 0; transition: all 0.3s; white-space: nowrap; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+.toolbar-btn { flex: 1; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: var(--shadow); }
+.toolbar-btn:active { opacity: 0.6; }
+.toolbar-btn.primary { background: var(--btn); color: var(--btn-text); border-color: var(--btn); }
+#import-file-input { display: none; }
+
+.import-progress { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); display: none; }
+.import-progress.show { display: block; }
+.progress-bar-wrap { background: var(--border); border-radius: 4px; height: 6px; margin-top: 8px; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--btn); border-radius: 4px; transition: width 0.3s; width: 0%; }
+.progress-text { font-size: 12px; color: var(--hint); margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -162,6 +175,17 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     <div class="ftag" onclick="setHousingFilter('free',this)">Есть места</div>
     <div class="ftag" onclick="setHousingFilter('full',this)">Заполнено</div>
     <div class="ftag" onclick="setHousingFilter('soon',this)">Скоро выезд</div>
+  </div>
+  <div class="toolbar">
+    <button class="toolbar-btn" onclick="downloadTemplate()">📥 Шаблон</button>
+    <button class="toolbar-btn" onclick="document.getElementById('import-file-input').click()">⬆️ Импорт</button>
+    <button class="toolbar-btn" onclick="exportXlsx()">⬇️ Экспорт</button>
+  </div>
+  <input type="file" id="import-file-input" accept=".xlsx,.xls" onchange="importXlsx(this)">
+  <div class="import-progress" id="import-progress">
+    <div style="font-size:13px;font-weight:500" id="import-progress-label">Импорт...</div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="import-progress-bar"></div></div>
+    <div class="progress-text" id="import-progress-text"></div>
   </div>
   <div id="housing-list"></div>
 </div>
@@ -205,6 +229,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
       <div class="form-group"><label>Мест *</label><input type="number" id="hf-capacity" min="1" value="4" inputmode="numeric"></div>
     </div>
     <div class="form-group"><label>Адрес</label><input type="text" id="hf-address" placeholder="ул. Ленина, 5"></div>
+    <div class="form-group"><label>Телефон</label><input type="tel" id="hf-phone" placeholder="+7 999 123 45 67"></div>
     <div class="form-row">
       <div class="form-group"><label>kr / день</label><input type="number" id="hf-rate" min="0" placeholder="2500" inputmode="numeric"></div>
       <div class="form-group"><label>Единиц</label><input type="number" id="hf-units" min="1" value="1" inputmode="numeric"></div>
@@ -300,7 +325,7 @@ function showStatusScreen(icon, title, text, showId) {
 // DATA
 async function loadData() {
   const [h,t] = await Promise.all([dbGet('housing','?order=created_at.asc'), dbGet('tenants','?order=created_at.asc')]);
-  housing = h.map(r=>({id:r.id,name:r.name,type:r.type,address:r.address,capacity:r.capacity,units:r.units,rate:r.rate,notes:r.notes}));
+  housing = h.map(r=>({id:r.id,name:r.name,type:r.type,address:r.address,capacity:r.capacity,units:r.units,rate:r.rate,notes:r.notes,phone:r.phone}));
   tenants = t.map(r=>({id:r.id,housingId:r.housing_id,first:r.first_name,last:r.last_name,room:r.room,checkin:r.checkin,checkout:r.checkout,rate:r.rate,notes:r.notes}));
   render();
 }
@@ -438,7 +463,7 @@ function openHousingSheet(id=null){
   document.getElementById('hf-name').value=h?.name||''; document.getElementById('hf-type').value=h?.type||'🏠';
   document.getElementById('hf-address').value=h?.address||''; document.getElementById('hf-capacity').value=h?.capacity||4;
   document.getElementById('hf-units').value=h?.units||1; document.getElementById('hf-rate').value=h?.rate||'';
-  document.getElementById('hf-notes').value=h?.notes||'';
+  document.getElementById('hf-notes').value=h?.notes||''; document.getElementById('hf-phone').value=h?.phone||'';
   document.getElementById('hso').classList.add('open'); document.getElementById('hs').classList.add('open');
 }
 function closeHousingSheet(){document.getElementById('hso').classList.remove('open');document.getElementById('hs').classList.remove('open');editingHousingId=null;}
@@ -446,7 +471,7 @@ async function saveHousing(){
   const name=document.getElementById('hf-name').value.trim(), capacity=parseInt(document.getElementById('hf-capacity').value);
   if(!name){showToast('Введите название');return;} if(!capacity){showToast('Укажите кол-во мест');return;}
   const btn=document.querySelector('#hs .submit-btn'); btn.disabled=true;
-  const row={id:editingHousingId||Date.now(),name,type:document.getElementById('hf-type').value,address:document.getElementById('hf-address').value.trim()||null,capacity,units:parseInt(document.getElementById('hf-units').value)||1,rate:parseFloat(document.getElementById('hf-rate').value)||0,notes:document.getElementById('hf-notes').value.trim()||null};
+  const row={id:editingHousingId||Date.now(),name,type:document.getElementById('hf-type').value,address:document.getElementById('hf-address').value.trim()||null,capacity,units:parseInt(document.getElementById('hf-units').value)||1,rate:parseFloat(document.getElementById('hf-rate').value)||0,notes:document.getElementById('hf-notes').value.trim()||null,phone:document.getElementById('hf-phone').value.trim()||null};
   if(editingHousingId){await dbPatch('housing',row,`?id=eq.${editingHousingId}`);showToast('Обновлено');}else{await dbPost('housing',row);showToast('Добавлено');}
   btn.disabled=false; closeHousingSheet(); await loadData();
 }
@@ -480,6 +505,163 @@ async function saveTenant(){
 }
 async function deleteTenant(id){const t=tenants.find(x=>x.id===id);if(!confirm(`Удалить ${t?.first}?`))return;await dbDel('tenants',`?id=eq.${id}`);await loadData();showToast('Удалено');}
 async function quickCheckout(id){const t=tenants.find(x=>x.id===id);if(!t)return;const d=prompt('Дата выселения (ГГГГ-ММ-ДД):',new Date().toISOString().split('T')[0]);if(!d)return;await dbPatch('tenants',{checkout:d},`?id=eq.${id}`);await loadData();showToast(`${t.first} выселен(а)`);}
+
+// ===== XLSX TEMPLATE =====
+function downloadTemplate() {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet: Объекты
+  const hData = [
+    ['название*', 'тип', 'адрес', 'телефон', 'мест*', 'единиц', 'kr_день', 'заметки'],
+    ['Апартаменты №1', '🏠', 'ул. Ленина, 5', '+7 999 123 45 67', 4, 1, 3500, 'Вид на парк'],
+    ['Хостел блок B',  '🏘', 'пр. Мира, 22',  '',                 8, 2, 900,  ''],
+  ];
+  const hSheet = XLSX.utils.aoa_to_sheet(hData);
+  hSheet['!cols'] = [22,8,24,18,7,7,10,28].map(w=>({wch:w}));
+  // Highlight header row
+  ['A1','B1','C1','D1','E1','F1','G1','H1'].forEach(c => {
+    if (!hSheet[c]) return;
+    hSheet[c].s = { font:{bold:true}, fill:{fgColor:{rgb:'D6EAE0'}} };
+  });
+  XLSX.utils.book_append_sheet(wb, hSheet, 'Объекты');
+
+  // Sheet: Справка
+  const helpData = [
+    ['Поле', 'Описание', 'Пример'],
+    ['название*', 'Обязательное. Название объекта', 'Апартаменты №1'],
+    ['тип', '🏠 Квартира  🏡 Дом  🛏 Комната  🏨 Апарт.  ⛺ Домик  🏘 Хостел', '🏠'],
+    ['адрес', 'Адрес объекта', 'ул. Ленина, 5, кв. 12'],
+    ['телефон', 'Контактный телефон', '+7 999 123 45 67'],
+    ['мест*', 'Обязательное. Кол-во мест/кроватей', '4'],
+    ['единиц', 'Кол-во единиц жилья (комнат, блоков)', '1'],
+    ['kr_день', 'Базовая ставка kr/день', '3500'],
+    ['заметки', 'Любые заметки', 'Вид на парк, Wi-Fi'],
+  ];
+  const helpSheet = XLSX.utils.aoa_to_sheet(helpData);
+  helpSheet['!cols'] = [{wch:12},{wch:52},{wch:24}];
+  XLSX.utils.book_append_sheet(wb, helpSheet, 'Справка');
+
+  XLSX.writeFile(wb, 'шаблон_объекты.xlsx');
+}
+
+// ===== XLSX IMPORT =====
+async function importXlsx(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  const progress = document.getElementById('import-progress');
+  const bar = document.getElementById('import-progress-bar');
+  const label = document.getElementById('import-progress-label');
+  const text = document.getElementById('import-progress-text');
+
+  progress.classList.add('show');
+  label.textContent = 'Читаю файл...';
+  bar.style.width = '5%';
+  text.textContent = '';
+
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(ab, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+
+  if (!rows.length) { showToast('Файл пустой'); progress.classList.remove('show'); return; }
+
+  const typeMap = {'квартира':'🏠','дом':'🏡','комната':'🛏','апарт':'🏨','домик':'⛺','хостел':'🏘'};
+  const resolveType = v => {
+    if (!v) return '🏠';
+    const s = String(v).toLowerCase().trim();
+    for (const [k,e] of Object.entries(typeMap)) { if(s.includes(k)||s===e) return e; }
+    return v || '🏠';
+  };
+
+  const valid = rows.filter(r => (r['название*']||r['название']||'').toString().trim());
+  if (!valid.length) { showToast('Нет строк с названием'); progress.classList.remove('show'); return; }
+
+  label.textContent = `Загружаю ${valid.length} объектов...`;
+  bar.style.width = '20%';
+
+  let done = 0, errors = 0;
+  for (const r of valid) {
+    const name = (r['название*']||r['название']||'').toString().trim();
+    const capacity = parseInt(r['мест*']||r['мест']||r['capacity']||4) || 4;
+    const row = {
+      id: Date.now() + Math.floor(Math.random()*9999),
+      name,
+      type: resolveType(r['тип']||r['type']||''),
+      address: (r['адрес']||r['address']||'').toString().trim() || null,
+      phone: (r['телефон']||r['phone']||'').toString().trim() || null,
+      capacity,
+      units: parseInt(r['единиц']||r['units']||1) || 1,
+      rate: parseFloat(r['kr_день']||r['kr/день']||r['rate']||0) || 0,
+      notes: (r['заметки']||r['notes']||'').toString().trim() || null,
+    };
+    const res = await dbPost('housing', row);
+    if (res && res.length) done++; else errors++;
+    bar.style.width = Math.round(20 + (done+errors)/valid.length*75) + '%';
+    text.textContent = `${done+errors} из ${valid.length}`;
+  }
+
+  bar.style.width = '100%';
+  label.textContent = errors ? `Готово: ${done} добавлено, ${errors} ошибок` : `✅ Добавлено ${done} объектов`;
+  text.textContent = '';
+  setTimeout(() => progress.classList.remove('show'), 3000);
+  await loadData();
+}
+
+// ===== XLSX EXPORT =====
+function exportXlsx() {
+  if (!housing.length && !tenants.length) { showToast('Нет данных для экспорта'); return; }
+  const wb = XLSX.utils.book_new();
+  const today = new Date().toLocaleDateString('ru-RU');
+
+  // Sheet 1: Объекты
+  const hRows = housing.map(h => {
+    const ats = activeTenants(h.id);
+    return {
+      'Название': h.name,
+      'Тип': h.type,
+      'Адрес': h.address || '',
+      'Телефон': h.phone || '',
+      'Мест всего': h.capacity,
+      'Занято': ats.length,
+      'Свободно': housingFree(h),
+      'kr/день': h.rate || 0,
+      'Единиц': h.units || 1,
+      'Жильцов всего': tenants.filter(t=>t.housingId===h.id).length,
+      'Заметки': h.notes || '',
+    };
+  });
+  const hSheet = XLSX.utils.json_to_sheet(hRows);
+  hSheet['!cols'] = [22,6,26,18,10,8,8,10,8,12,28].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, hSheet, 'Объекты');
+
+  // Sheet 2: Жильцы
+  const tRows = tenants.map(t => {
+    const h = housing.find(h=>h.id===t.housingId);
+    const ts = tenantStatus(t);
+    return {
+      'Имя': t.first,
+      'Фамилия': t.last || '',
+      'Объект': h ? h.name : '—',
+      'Адрес': h?.address || '',
+      'Место': t.room || '',
+      'Заселение': t.checkin || '',
+      'Выселение': t.checkout || '∞',
+      'Дней': tenantDays(t),
+      'kr/день': effectiveRate(t),
+      'Статус': ts.label,
+      'Заметки': t.notes || '',
+    };
+  });
+  const tSheet = XLSX.utils.json_to_sheet(tRows);
+  tSheet['!cols'] = [14,14,22,26,14,12,12,7,10,14,28].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, tSheet, 'Жильцы');
+
+  const fname = `жильё_${today.replace(/\./g,'-')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('Файл скачан');
+}
 
 function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2500);}
 
